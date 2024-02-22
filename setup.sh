@@ -15,9 +15,9 @@ DEBUG=            # for compiling a version useful for debugging.
 #DEBUG="yes"
 
 if [ -z "$DEBUG" ] ; then
-    LIBNAME=lanczos
+    LIBNAME=liblanczos
 else
-    LIBNAME=lanczos_debug
+    LIBNAME=liblanczos_debug
 fi
 
 #preset options for some systems

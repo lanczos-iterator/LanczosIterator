@@ -18,7 +18,7 @@ or Apple VecLib. This is because an incompatible convention
 for the return values of complex functions is being used.
 
 This can be tested for by compiling and running the program
-zdotc_test.f90, after linking it with the desired BLAS implementation.
+test_zdotc.f90, after linking it with the desired BLAS implementation.
 
 If this shows that this compiler/library combination breaks ZDOTC, the
 solution is to call the wrapper ZDOTC_WRAPPER instead of calling ZDOTC.

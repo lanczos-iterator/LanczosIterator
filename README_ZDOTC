@@ -1,0 +1,34 @@
+The BLAS (Basic Linear Algebra Subprograms) library that
+comes with LAPACK is used by default, as it may be 
+available in an architecture-optimized form.
+
+Use of BLAS can be disabled (before calling lanczos) by a call
+    
+    call set_use_blas(.false.)    (Fortran)
+    set_use_blas(false);          (C with #include <stdbool.h>)
+    set_use_blas(0);              (C)
+
+Native Fortran95 vector procedures will then be used instead.
+----------------------------------------------------
+
+Some compilers (e.g. gfortran) may by default produce code
+not compatible with LAPACK/BLAS implementations of the
+double complex function ZDOTC, such as those in Intel MKL
+or Apple VecLib. This is because an incompatible convention
+for the return values of complex functions is being used.
+
+This can be tested for by compiling and running the program
+zdotc_test.f90, after linking it with the desired BLAS implementation.
+
+If this shows that this compiler/library combination breaks ZDOTC, the
+solution is to call the wrapper ZDOTC_WRAPPER instead of calling ZDOTC.
+
+Use of the wrapper is activated by a call (before calling lanczos)
+    
+    call set_wrap_zdotc(.true.)   (Fortran)
+    set_wrap_zdotc(true);         (C with #include <stdbool.h>)
+    set_wrap_zdotc(1);            (C)
+    
+
+
+

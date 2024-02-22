@@ -1,0 +1,54 @@
+2024-02-20
+cleanup the zdotc wrapper code
+
+2024-02-09
+added a C interface
+
+2024-02-07
+revised structure of drivers rs_diag and ch_diag to have a simpler
+form of output.  (incompatible with earlier versions)	
+minor fix to test_lanczos and
+lanczos_iterator (mask feature)
+
+2019-03-16:
+use zdot_wrapper for  zdotc in vector_m when both
+use_blas and wrap_zdotc are .true.
+
+2019-03-11:
+interface fixes for Blas functions zdotc etc.
+intialise GAP to zero in lanczos_iterator
+
+(cosmetic) fixed incorrect output when hermiticity test fails
+2014-05-06:
+now uses  a robust estimate for an upper bound to the gap to the next eigenvalue,
+given by (vec, mat vec) where vec is a normalized starting vector that is
+orthogonal to the previously-found eigenvectors.
+
+2014-05-07
+fixed a bug in tmatrix_m : in the rare accidental case that the reverse Cholesky decomposition
+T - ev = LDU used in the Raleigh quotient iteration has exactly zero  in the last entry of D, the RQI
+cannot  be used to improve the eigenvector.
+
+2014-07-26
+cleanup old style fortran (f77)  remnants in  tmatrix_m.f90
+remove use of BLAS functions in tmatrix_m (use fortran95 equivalents)
+
+2014-07-29  v3.0
+Name changed to LANCZOS_ITERATOR.
+Merged the real-symmetric and complex-hermitian cases by defining  a new  structure
+TYPE (VECTOR_T) ) that can hold (as a pointer) either a real or a complex vector.
+
+All vector manipulations are now extracted into module VECTOR_M,  which has a switch
+USE_BLAS that can select between  using  the BLAS or the native fortran95 vector forms
+for the basis linear algebra.   A module MATRIX_ALGEBRA_M now also provides an interface 
+to LAPACK subprograms DSBTRD and DSTEBZ.
+
+If BLAS is used, native fortran95 vector code can still be substituted for  the 
+apparently-sometimes-broken ZDOTC by setting BROKEN_ZDOTC = .true.  (The use here of an 
+explicit interface to ZDOTC may have cured any such problems.)
+     
+The basic Lanczos algorithms are now blind to whether the vector is real symmetric or 
+complex Hermitian, and have no extrenal dependences.
+
+A subprogram MATRIX_SUBSPACE_DETECTOR that can proble MATVEC for disconnected invariant 
+subspaces is now also provided,in addition to LANCZOS_ITERATOR.

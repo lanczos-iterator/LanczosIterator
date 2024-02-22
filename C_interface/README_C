@@ -1,0 +1,45 @@
+The files here provide an interface to C.
+
+1.   in C, you should provide an implementation of
+
+        void rs_matvec_c(int n, double *vec)
+        void ch_matvec_c(int n, double _Complex *vec)
+ 
+     which replaces vec[n] by the vector produced by
+     acting on it with the matrix (real symmetric or
+     complex Hermitian).
+
+        vec(out) = matrix * vec(in)
+
+     Note that this is simpler than the FORTRAN version.
+     You can use your own name for your matvec procedure. 
+
+2.  See test_lanczos.c for how to call the C-wrappers
+    rs_lanczos_c or ch_lanczos_c The arguments are equivalent
+    to those in the FORTRAN version.
+     
+3.  Using C and Fortran compilers FC and CC, the workflow is:
+
+      CC -c test_lanczos.c
+      FC test_lanczos.o  lanczos.a OPT -llapack -lblas
+
+    where lanczos.a is the compiled lanczos_iterator
+    library.  Possible values of (CC,FF,OPT) are :
+     
+    (gcc, gfortran, "")          GNU compilers
+    (ifc, ifx, "-nofor_main")    Intel OneAPI
+    (icc, ifort, "-nofor_main")  Intel "Classic"
+    (nvc, nvfortran, "-Mnomain") NVIDIA HPC
+
+    To use Intel's MKL libraries, replace "-llapack -lblas"
+    by "-qmkl=sequential" or (for openMP) "-qmkl=parallel"
+    (after running "source [path to]/setvars.sh").
+
+    To use Apple's Accelerate, replace "-llapack -lblas" with
+    "-framework Accelerate".
+
+    You will usually need to initially call "set_wrap_zdotc(1)"
+    in C (or use "true" for "1" if stdbool.h has been included)
+    to use Vendor-supplied libraries such as Intel's MKL or
+    Apple's Accelerate when the Lanzos code was compiled with
+    gfortran.

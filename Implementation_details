@@ -1,0 +1,245 @@
+
+Synopsis, Lanczos_iterator:
+
+This is a Lanczos procedure designed for sequentially obtaining ordered
+eigenvalue  sequences E_1 <= E_2 <= E_3 ......    <= E_n for quite large
+n, (where E1 is the lowest eigenvalue) of sparse Hermitian  matrices with
+huge (>> n) dimensions, specified indirectly by a user-supplied matrix-
+vector multiplication algorithm.  It assumes that the dominant computational
+cost is the matrix-vector  multiplication, so the cost of fully processing
+(at each step in the Lanczos process) the tridiagonal representation of the
+matrix generated in the Krylov subspace is negligible compared to that of a
+single matrix-vector multiplication.
+
+
+The basic routine LANCZOS_ITERATOR.f90 is a double-precision FORTRAN95 
+routine designed to find the n+1'th lowest eigenvector x_{n+1}  and 
+eigenvalue E_{n+1} of a  complex-Hermition or real-symmetric matrix M 
+that is specified  only by a matrix-vector mutiplication routine MATVEC.  
+For n > 0, it assumes that it has previously been used to obtain the 
+lowest n eigenvectors and eigenvalues.
+
+User-supplied MATVEC(n,x,y,add) implements both  y = M.x  (logical input 
+variable add = .false.) or y = M.x + y (add = .true.) where  x(n) and y(n) 
+are either real vectors (real-symmetric M) or complex (complex-Hermitian M).
+
+The novel feature of this implementation is that the limit ERR on possible 
+eigenvalue resolution in MATVEC, due to finite-precision arithmetic, is 
+determined by probing the user-supplied "black box" MATVEC. Then both 
+eigenvalues AND eigenvectors are determined to the maximum accuracy posible. 
+A novel "Lanczos polishing" process is added to the standard Lanczos
+procedure to reduce the residual norm of computed eigenvectors to be of
+order ERR.
+ 
+(a)   The standard Lanczos process is used to obtain the approximate 
+      eigenvector x with the smallest eigenvalue:
+
+          M.x  = E_1x + vy,   (x,x) = (y,y) = 1, (x,y) = 0, 
+
+      with  real positive eigenvector variance v (or residual norm).   The 
+      variance v is made as small as possible using the standard Lanczos 
+      algorithm.  The eigenvalue E_1 is first obtained to maximum precision 
+      using a Krylov subspace K(M,r,N) = of dimension N, spanned by
+      	 	 	{r, M.r, ( M**2).r, ... , (M**N).r}
+      where r is a randomly-chosen vector.  The Lanczos process is continued 
+      after E_1 converges at Krylov subspace size N_1,  until v stops 
+      decreasing. (This always occurs before the size of the Krylov subspace 
+      reaches 2N_1).  While E_1 is now known to accuracy ERR, v is generally 
+      much larger than ERR.
+
+(b)   The polishing process attempts to use a new Krylov subspace  K(M-E,x,N')
+      to solve
+         (M-E_1).z = y,        x.z = 0
+      If this can be done,  the exact eigenvector would be
+          x_1 = x  - vz
+      Since exact solution is impossible in finite-precision arithmetic, 
+      Krylov-subspace approximations to z are used to reduce the variance 
+      untiL it is of order ERR.  E_1,  x_1, and its final  variance v_1,
+      are the output.
+
+(c)   The process is iterated to  find the lowest eigenvalue E_{n+1} and 
+      eigenvector x_{n+1} (with a  small variance v_{n+1}) of
+          M_n   =   M +  sum_{i=1:n}  (lambda -E_n) |x_i)(x_i|  
+      where lambda is chosen to guarantee that E_{n+1} < lambda.	 
+
+=============================================================================
+Implementation details:
+
+Memory requirements:
+The memory allocated for calculation of NEVEC eigenvector/eigenvalue pairs 
+scales as (max(4,NEVEC + 2)) * N  + 8 * MAXSTEP,  where N is dimension of the 
+(real or complex 64 bit) eigenvector, and MAXSTEP is the maximum allowed
+dimension of the (real 64 bit)Lanczos (Ritz) vector. The code design assumes 
+that MAXSTEP is negligible compared to the underlying matrix dimension N.
+ 
+In order to combine real symmetric and complex Hermitian cases in a single 
+code, LANCZOS_ITERATOR  places the eigenvectors into a derived type
+
+type vector_t
+     integer :: n
+     logical :: is_real
+     double precision, pointer :: r(:)
+     double complex, pointer :: c(:)
+end type
+type (vector_t) :: EVEC(N_EVEC)
+
+For the real symmetric case, EVEC(I)%is_real = .true. and EVEC(I)%r is a 
+pointer to the corresponding eigenvector.   For the complex Hermitian case, 
+EVEC(I)%is_real = .false., EVEC(I)%c is the pointer.  Manipulations of such 
+vectors are exclusively carried out using the tools in module VECTOR_M.
+
+
+The full interface to LANCZOS_ITERATOR is:
+
+interface 
+ subroutine  lanczos_iterator(n,vector_is_real,nevec,evec,eval,var,err,
+  &	    matvec,seed, maxstep,info,mask_val,mask_vec)
+  integer, intent(in)  :: n                        ! Hilbert-space dimension
+  logical, intent(in) :: vector_is_real            ! real symmetric vs. complex 
+  integer, intent(in) ::  nevec                    ! number of found eigenvectors
+  type(vector_t),   intent(inout) :: evec(nevec+1) ! eigenvectors (see vector_m)
+  double precision, intent(inout) :: eval(nevec+1) ! eigenvalues
+  double precision, intent(inout) :: var(nevec+1)  ! eigenvector variances
+  double precision, intent(inout) :: err           ! resolution, found if nevec=0
+  external matvec                                  ! matrix-vector multiplier name
+  integer, intent(inout) :: seed(4)                ! randam number generator seed
+  integer, intent(in)  :: maxstep                  ! max. number of lanczos steps
+  integer, intent(inout) :: info(3)                ! controls information output
+  integer, intent(in), optional :: mask_val        ! controls mask
+  integer, intent(in), optional :: mask_vec(n)     ! mask for Krylov initial vector
+end subroutine lanczos_iterator
+
+=================================================================================
+NOTES on subroutine LANCZOS_ITERATOR
+
+Input:  logical VECTOR_IS_REAL 
+= .true. for a real symmetric matrix, .false. for complex Hermitian
+
+Input: external MATVEC 
+The name on the matrix vector multiplication routine can replaced by any valid 
+name  that the user wishes to give it.
+
+Input: integer SEED(4)
+The four values mod(abs(SEED(1:4)),4096) are used by the random number 
+generator  (DLARNV or ZLARNV from LAPACK, invoked in module vector_m).
+ 
+Input: integer MAXSTEP 
+If non zero, This sets an upper limit to the Krylov susbspace dimension.
+It should  be "large enough" so eigenvalue convergence occurs before MAXSTEP/2
+Lanczos steps have  been taken, but not infinite.
+(This is mainly a precaution so that the program will not run endlessly
+if some error occurs,) A value of 5000 is suggested, but should be increased
+appropriately as needed.   If MAXSTEP = 0 is used, no limit will be imposed.
+
+Input: integer INFO(2)
+INFO(1)  = -k <  0  is used to turn on a "debug" mode that reports the state
+of the Lanczos process and the polishing process every k  steps.  (Should be 
+reset before each interation because a positive value is returned.)
+Output:
+INFO(1) :  number of lanczos steps in the primary Lanczos process
+INFO(2) :  number of lanczos steps in the secondary polishing process.
+
+If MAXSTEP is correctly chosen, it will be significantly larger than these 
+numbers for the eigenstates of interest.    The necessary minimum MAXSTEP will
+vary with the position of the eigenvalue in the matrix spectrum.
+The value MAXSTEP = 0 means that NSTEP will continue to group until convergence
+occurs.
+
+Input (optional) integer MASK_VAL, MAK_VEC(N):  
+If present, these  project out parts of the Lanczos starting vector.  
+(This is only  useful if the matrix has disconnected subspaces so that reordering 
+the MATVEC basis could bring it to be block-diagonal form, with more than one 
+block, and MASK_VAL projects into a matrix subspace).
+
+If MASK_VAL and MASK_VEC_are present:
+ (a) if MASK_VAL = 0, starting vector element I is set to zero if MASK_VEC(I) = 0
+ (b) if MASK_VAL is in the range [1:N], all elements I where
+      MASK_VEC(I) /= MASK_VAL are set to zero,
+ (c) if MASK_VAL is outside the range [0:N] the mask is ignored.
+If all elements of the starting vector would be set to zero by the mask, the 
+program terminates with an error message.
+
+If the independent subprogram  MATRIX_SUBSPACE_DETECTOR reports that MATVEC has 
+disconnected subspaces,its output SPLIT(N) gives the subspace number of each 
+element of the vector.    For J in [1:N_SUBSPACE], MASK_VAL = J and
+MASK_VEC= SPLIT will project into subspace J.
+
+ 
+=============================================================================
+NOTES on  module VECTOR_M and on using BLAS (Basis Linear Algebra Subprograms)
+
+All vector algebra in the potentially-huge Hilbert space is handled by basic 
+routines in module vector_m
+
+By default, anything involving multiplication is handled with BLAS subprograms 
+DSCAL, DAXPY, DDOT, DNRM2, and ZDSCAL, ZAXPY, ZDOTC, DZNRM2, which are often 
+available in processor-optimized form.    Use of BLAS can be disabled by calling  
+      SET_USE_BLAS(logical :: USE_BLAS)
+with USE_BLAS = .false..
+
+Some BLAS distributions treat complex functions as subroutines, with a "hidden"
+initial argument that contains the result (this was the Fortran77 method).
+Others treat them "correctly" as expected, as functions that return a complex result.
+The only complex function used here is ZDOTC.  gfortran uses the second method, while
+optimized vendor-supplied libraries  (e.g. Intel's MKL, Apple's Accelerate) use the
+earlier convention for f77 compatibility.   You should use the provided test program
+"test_zdotc" to see if your compiler + BLAS combination use incompatible conventions.
+If they do, activate a "wrapper" for ZDOTC by calling "set_wrap_zdotc(.true.)" before
+calling the lanczos programs.    (An alternative is to use native Fortran95 procedures
+to replace BLAS, by instead calling "set_use_blas(.false.)".
+===============================================================================
+Notes on module MATRIX_ALGEBRA_M
+
+This implements a subroutine TRIDIAGONALIZE to put a real symmetric band matrix 
+A(I,J) where A(I,J) = 0 for |I-J| > 2 into tridiagonal form with an orthogonal 
+transformation, using an interface to LAPACK subprogram DSBTRD.
+
+It also implements a subroutine LOWEST_TMATRIX_EIGENVALUE, that obtains the 
+lowest eigenvalue of a real symmetric tridiagonal matrix using an interface to 
+LAPACK subprogram DSTEBZ.
+==============================================================================
+Notes on subroutine MATRIX_SUBSPACE_DETECTOR
+
+This is a tool for analyzing MATVEC to find any invariant (disconnected) 
+subspaces.(i.e., if it would be  block-diagonal after simply reordering the 
+basis). Its output SPLIT(N) can be used as the LANCZOS_ITERATOR optional input 
+MASK_VEC(N),    Call LANCZOS_ITERATOR with MASK_VAL = i, MASK_VEC = SPLIT, 
+to project on subspace i <= N_SUBSPACE.   Note: Subspaces must be treated 
+sequentially, as unrelated Lanczos problems.   The eigenvectors EVEC(1:NEVEC)
+used to obtain EVEC(NEVEC+1) must belong to the same subspace as it.
+
+There is an optional integer argument MAX_ALLOWED that terminates subspace 
+detection if more than this number of subspaces are detected, with a return 
+value N_SUBSPACE = 0.   This allows the subprogram to be used to just detect 
+the presence or absence of disconnected subspaces. (If such subspaces are 
+detected, it may be appropriate to redesign MATVEC to take them into account.)
+
+The interface is:
+ 
+subroutine matrix_subspace_detector(n,vector_is_real,matvec,n_subspace,
+    & min_dimension, max_dimension, split,max_allowed)
+  integer, intent(in) ::  n
+  logical, intent(in) :: vector_is_real
+  integer, intent(inout) :: n_subspace
+  integer, intent(out) :: split(n), min_dimension, max_dimension
+  integer, intent(in), optional :: max_allowed
+  external :: matvec
+end subroutine matrix_subspace_detector
+
+  !-------------------------------------------------------------------------
+  ! provides information about any trivial invariant (disconnected)  subspaces
+  ! in the  MATVEC basis.  detailed output is placed in the output structure 
+  ! subspace_structure.
+  !
+  ! on input: 
+  !   n_subspace = -k < 0     : prints  data on subspaces 1 : min(k, n_subspace)
+  !   max_allowed (optional)  : terminates when n_subspace > max_allowed  
+  ! 
+  ! on output:
+  !   n_subspace          : number of subspaces (0 if  max_allowed is exceeded)
+  !   min_dimension       : smallest subspace dimension
+  !   max_dimension       : largest subspace dimension
+  !   split(n)            : index in [1: n_subspace] of each state in the basis
+  !    
+  !----------------------------------------------------------------------------
+  

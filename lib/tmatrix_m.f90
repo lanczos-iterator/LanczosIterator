@@ -384,9 +384,9 @@ contains
     logical, save :: first_call = .true.
     real(kind=dp), save :: sfmin
     real(kind=dp), parameter :: one = 1_dp, zero = 0_dp
-    
+    integer :: expon 
 
-    if(first_call) then      ! get overflow threshold 1/sfmin
+    if(first_call) then      ! get overflow threshold 1/sfmin (based on LAPACK reference dlamch)
        rnd = one
        if(rnd == one) then   ! assume rounding not chopping
           eps = epsilon(zero) * 0.5
@@ -394,7 +394,16 @@ contains
           eps = epsilon(zero)
        endif
        sfmin = tiny(zero)
-       small = one/huge(zero)
+       expon = 1 - maxexponent(zero) - minexponent(zero)
+       ! LAPACK dlamch reference uses small = one/huge(zero), which causes  underflow if expon < 0
+       ! one/huge(zero) = tiny(zero) * (radix(zero)**expon) / (one - epsilon(zero)/digits(zero))
+       if (expon < 0) then
+          small = zero
+       else  if (expon > 0) then
+          small = sfmin * radix(zero)**(abs(expon))
+       else
+          small = sfmin
+       endif
        if (small >= sfmin) then        !make sfmin just a bit bigger 
           sfmin = small * (one + eps)  !than small, to avoid
        endif                           !overflow due to rounding

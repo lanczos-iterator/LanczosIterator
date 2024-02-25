@@ -3,10 +3,10 @@
 !-------------------------------------------------------------------------
 module vector_m
   public
-
-  logical :: use_blas = .true. , wrap_zdotc= .false.
-
   integer, parameter :: dp = kind(0d0)  ! kind number of double precision real numbers 
+  logical :: twice
+  real(dp) :: e_twice
+  logical :: use_blas = .true. , wrap_zdotc= .false.
   private :: dp
 
   type vector_t
@@ -15,7 +15,7 @@ module vector_m
      real(kind=dp), pointer :: r(:) => null()
      complex(kind=dp), pointer :: c(:) => null()
   end type vector_t
-
+  type (vector_t) vector_twice
   
   interface   ! to BLAS  (Basic Linear Algebra Subroutines, provided with LAPACK)
      function ddot(n,dx,incx,dy,incy) result(res)
@@ -63,12 +63,34 @@ module vector_m
        double precision, intent(in) :: da
        double complex, intent(inout):: zx(*)
      end subroutine zdscal
+     subroutine dcopy(n,dx,incx,dy,incy)
+       integer, intent(in) :: n, incx, incy
+       double precision, intent(in) :: dx(*)
+       double precision, intent(out):: dy(*)
+     end subroutine dcopy
+     subroutine zcopy(n,zx,incx,zy,incy)
+       integer, intent(in) :: n, incx, incy
+       double complex, intent(in) :: zx(*)
+       double complex, intent(out):: zy(*)
+     end subroutine zcopy
   end interface
        
   private :: ddot, zdotc, dnrm2, dznrm2, daxpy, zaxpy, dscal, zdscal
 
 contains
+  subroutine vector_create_twice(n, vector_is_real)
+    implicit none
+    integer, intent(in) :: n
+    logical, intent(in) :: vector_is_real
+    call vector_create(n, vector_is_real, vector_twice)
+    return
+  end subroutine vector_create_twice
 
+  subroutine vector_erase_twice()
+    call vector_erase(vector_twice)
+    return
+  end subroutine vector_erase_twice
+  
   subroutine vector_create(n,vector_is_real,x)             ! allocate memory for the vector
     implicit none
     integer, intent(in) :: n
@@ -100,6 +122,17 @@ contains
 
     return
   end subroutine vector_erase
+
+  subroutine vector_zero(x)
+    implicit none
+    type (vector_t), intent(inout) :: x
+    if (x%is_real) then
+       x%r = real(0,dp)
+    else
+       x%c = cmplx(0,0,dp)
+    endif
+    return
+  end subroutine vector_zero
   
   subroutine vector_random_fill(x,seed)                           ! x = random(seed)
     implicit none
@@ -196,14 +229,32 @@ contains
     logical, intent(in) :: add
     
     character (len=50) :: name = "VECTOR_MATVEC"
+    character (len=50) :: name1 = "VECTOR_MATVEC (TWICE)"
     call vector_compatibility_test(x,y,name)
 
-    if(x%is_real) then
-       call matvec(x%n,x%r,y%r,add)
-    else
-       call matvec(x%n,x%c,y%c,add)
+    if (.not. twice) then
+       if(x%is_real) then
+          call matvec(x%n,x%r,y%r,add)
+       else
+          call matvec(x%n,x%c,y%c,add)
+       endif
+    else                                    !  if twice .eqv. .true., replaces M by (M-e_twice)*(M-e_twice)
+       call vector_compatibility_test(x,vector_twice,name1)
+       call vector_zero(vector_twice)
+       call vector_axpy(cmplx(-e_twice,0,dp),x,vector_twice)
+       if (x%is_real) then
+          call matvec(x%n,x%r,vector_twice%r,.true.)
+       else
+          call matvec(x%n,x%c,vector_twice%c,.true.)
+       endif
+       if (.not.add) call vector_zero(y)
+       call vector_axpy(cmplx(-e_twice,0,dp),vector_twice,y)
+       if (x%is_real) then
+          call matvec(x%n,vector_twice%r,y%r,.true.)
+       else
+          call matvec(x%n,vector_twice%c,y%c,.true.)
+       endif
     endif
-    
     return
   end subroutine vector_matvec
   
@@ -443,12 +494,20 @@ contains
     type (vector_t), intent(inout) :: x,y
 
     character (len=50) :: name = "VECTOR_COPY"
-    call vector_compatibility_test(x,y,name)   
+    call vector_compatibility_test(x,y,name)
     
     if (x%is_real) then
-       y%r = x%r
+       if (use_blas) then
+          call dcopy(x%n,x%r,1,y%r,1)
+       else
+          y%r = x%r
+       endif
     else
-       y%c = x%c
+       if (use_blas) then
+          call zcopy(x%n,x%c,1,y%c,1)
+       else
+          y%c = x%c
+       endif
     endif
 
     return

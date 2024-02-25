@@ -30,12 +30,7 @@ where `matrix` is a large nxn Hermitian matrix (real symmetric or complex Hermit
      interest in condensed matter physics  (fractional quantum Hall systems, fractional Chern insulators, Hubbard models, spin chains, etc.),
      with full resolution of degeneracies.    The method is practical when the matrices are sparse, so the matrix-times-vector multiplication
      operation can be efficiently implemented. (Full-matrix diagonalization methods rapidly become unusable as matrix dimensions approach
-     100,000 even on today's (2024) most powerful computers, and matrix size increases exponentially with system size in the quantum many-body problem.)
-
-*    Interior eigenvalues near E, and their eigenvectors, could be explored by implementing _MATVEC_ for `(M-E)*(M-E)` and then re-diagonalizing the
-     matrix `<evec(i)|M|evec(j)>` in the basis of the n_v lowest eigenvectors of the modified _MATVEC_.    This could be useful in studies of the
-     ETH (Eigenvector Thermalization Hypothesis).   (To be meaningfully resolvable, the spectral gaps between interior eigenvalues have to be
-     larger than the intrinsic resolution of the _MATVEC_ procedure.)
+     100,000 even on today's (2024) most powerful computers, and matrix size increases exponentially with system size in the quantum many-body problem.
 
 *    Whether there are any other areas needing this tool for accurate eigenvectors is an open question.
 

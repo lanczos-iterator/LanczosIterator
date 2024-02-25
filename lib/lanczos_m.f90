@@ -119,12 +119,8 @@ contains
     !--------------------------------------
     complex  (kind=dp) :: a
     integer i
-    
-    if(x%is_real) then
-       call matvec(x%n,x%r,y%r,add)
-    else
-       call matvec(x%n,x%c,y%c,add)
-    endif
+
+    call vector_matvec(x,y,matvec,add)
 
     if(shift.ne.zero) call vector_axpy(-cmplx(shift,kind=dp),x,y)
     

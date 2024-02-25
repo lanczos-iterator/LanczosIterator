@@ -250,7 +250,8 @@ subroutine  lanczos_iterator(n,vector_is_real,nevec,evec,eval,var,err, &
   ! polish evec
   var_prev = var(nevec+1)
   info(1) = nstep
-
+  vec1_p => work(1)
+  vec2_p => work(2)
   nstep = 0
   polish:   if(var_prev.gt.err) then
    lwork = 2*max_nstep

@@ -515,7 +515,6 @@ contains
     ! solve T(n)P(1)T(n)|v> = mu(T(n)T(n) + e2*P(n))|v>
     !
     !   mu = 1-muc  ,  0< mu <= 1.
-    !   reduction = dsqrt(1-mu/mu)
     !
     !  call lanczos_invit_getvec after this to get
     !   <i|v> returned in work(1),..work(n),
@@ -533,7 +532,6 @@ contains
     !  there is a unique solution with mu > 0, and has mu < 1 for non vanishing e2.
     !  mu = 1-muc.
     !
-    
     !--------------------------------------------------
     ! T(n) is presented as the Cholesky decompositon
     !
@@ -569,7 +567,13 @@ contains
     !     p1 =  <v|TP(1)T|v>        = mu
     !     -------------------
     !     <v|TT + e2*P(n)|v>
-    !     
+    !
+    !  with normalization <1|T|v> = 1
+    !
+    !                           sqrt(1-mu)
+    !     reduction factor = ------------------------
+    !                        || |0> - x\mu |v> ||
+    !                                                            
     !     reduction factor = dsqrt(muc/mu)
     !----------------------------------------
     real(kind=dp):: mu,bt1,an,bn
@@ -592,6 +596,7 @@ contains
        reduction = zero
        vb = zero
        mu = one
+       muc = zero
        return
     endif
     
@@ -599,7 +604,8 @@ contains
     !     TT|b> = |N>   LDULDL|b> = |N>
     !     ULDU|b> =   (1/D(N))|N>
     !     
-    !     
+    !   LDU|x> = |N>                                                                                                                                       
+    !    DU|x> = |N>         
     !     U|x> = (1/D(N)|N>
     !     L|y> = |x>
     !     D|z> = |y>
@@ -618,7 +624,7 @@ contains
     call l_inv(n,cmat,work(n+1))
     call d_inv(n,cmat,work(n+1))
     call u_inv(n,cmat,work(n+1))
-    
+    !  work(n+1:n+n) now contains |b> 
     !     solution is |v> = |a> - vb*|b>
     !     vb*(1+e2<N|b>) = (e2*<N|a>)
     !     mu = 1 + <1|T|b>(B/A) = <1|T|v>
@@ -628,7 +634,7 @@ contains
     vb = vb/(one + e2*bn)
     muc = vb*bt1
     mu = one - muc
-    reduction = sqrt(muc/mu)
+    reduction = sqrt(muc)
     return
   end subroutine lanczos_inverse_iteration
   

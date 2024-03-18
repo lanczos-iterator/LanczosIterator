@@ -247,70 +247,17 @@ subroutine  lanczos_iterator(n,vector_is_real,nevec,evec,eval,var,err, &
   call residual(evec(nevec+1),work(1),matvec,eval(nevec+1),var(nevec+1))
   if(give_info) write(6,'(" basic lanczos :, nstep=",i12," eigenvalue =", &
        & f25.16," variance =",1es12.3)') nstep, eval(nevec+1),var(nevec+1)
-  ! polish evec
-  var_prev = var(nevec+1)
+
   info(1) = nstep
-  vec1_p => work(1)
-  vec2_p => work(2)
-  nstep = 0
-  polish:   if(var_prev.gt.err) then
-   lwork = 2*max_nstep
-   allocate (cmat(2,max_nstep),w(lwork))
-   call vector_scale_by_real(1/var_prev,vec1_p)
-   call vector_copy(vec1_p,work(3))
-   done = .false.
-   eb = zero
-   shift = eval(nevec+1)
-   do while (.not.done)
-      if(nstep+1.ge.max_nstep) exit
-      call lanczos_iterate(nstep,d,e,vec1_p,vec2_p,matvec,shift,nevec+1,evec,eval,gap)
-      cmat(1,nstep) = d - eb                 
-      if(e.lt.err) then
-         done = .true.
-         e = zero
-      else if (cmat(1,nstep).lt.err) then
-         done = .true.
-      else 
-         cmat(2,nstep) = e/cmat(1,nstep)
-         eb = e*cmat(2,nstep)
-      endif
-      e2 = e**2
-      call lanczos_inverse_iteration(nstep,cmat,e2,reduction,vb,muc,w,lwork)
-      if(nstep.gt.1.and.(reduction/prev_reduction).gt.0.995d0) done = .true.
-      if(reduction*var_prev.lt.err/2) done = .true.
-      if(debug.and.mod(nstep,report)==0) write(6,'("polish nstep:",i5,& 
-           & " variance  reduction",1es18.9,l5)') nstep,reduction,done
-      if(reduction.gt.one) exit
-      prev_reduction = reduction
-   enddo
-   if(done) then
-      call lanczos_invit_getvec(nstep,vb,muc,w,lwork)
-      ! the improved t-matrix eigenvector is returned in w(1:nstep); rerun lanczos
-      call vector_copy(work(3),vec1_p)
-      call vector_scale_by_real(w(1),work(3))
-      i = 0
-      do while (i+1.lt.nstep)
-         call lanczos_iterate(i,d,e,vec1_p,vec2_p,matvec,shift,nevec+1,evec,eval,gap)
-         call vector_axpy(cmplx(w(i+1),kind=dp),vec2_p,work(3))
-      enddo
-
-      call vector_normalize(work(3))
-      call lanczos_maxpy(evec(nevec+1),work(1),.false.,matvec,shift,nevec+1,evec,eval,zero)
-      call lanczos_maxpy(work(3),work(2),.false.,matvec,shift,nevec+1,evec,eval,zero)
-
-      call polish_subtraction(evec(nevec+1),work(1),work(3),work(2))
-      call residual(evec(nevec+1),work(1),matvec,eval(nevec+1),var(nevec+1))
-
-   endif
-   deallocate(cmat,w); 
-end if polish
-
-info(2) = nstep 
-
-if(give_info) then
-   write(6,'(" polish lanczos:, nstep=",i12," variance =",1es12.3)') nstep, var(nevec+1)
-endif
-
+  info(2) = 0
+  if(var(nevec+1).gt.err) then
+     call lanczos_polisher(work,matvec,eval(nevec+1),evec(nevec+1),var(nevec+1), &
+          storage,info(2),err,debug,report)
+     if(give_info) then
+        write(6,'(" polish lanczos:, nstep=",i12," variance =",1es12.3)') nstep, var(nevec+1)
+     endif
+  endif 
+  
 return
 contains
   subroutine new_tmat_storage(new)
@@ -375,3 +322,4 @@ subroutine get_residual(evec, residual_vec, matvec, eigenvalue, variance, norm)
   call residual(evec, residual_vec, matvec, eigenvalue, variance, norm)
   return
 end subroutine get_residual
+
